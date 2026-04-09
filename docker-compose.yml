@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  # 1. Frontend (React/Next.js servido por Nginx)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - ai_network
+
+  # 2. Backend (FastAPI)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai_backend
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://admin:supersecretpassword@postgres:5432/enterprise_ai
+      - QDRANT_URL=http://qdrant:6333
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - SD_API_URL=http://stable-diffusion:7860
+      - DATA_DIR=/data/usuarios
+    ports:
+      - "8000:8000"
+    volumes:
+      - user_data:/data/usuarios
+    depends_on:
+      - postgres
+      - qdrant
+      - ollama
+    networks:
+      - ai_network
+
+  # 3. Base de datos relacional (PostgreSQL)
+  postgres:
+    image: postgres:15-alpine
+    container_name: ai_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: supersecretpassword
+      POSTGRES_DB: enterprise_ai
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ai_network
+
+  # 4. Base de datos vectorial (Qdrant)
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: ai_qdrant
+    restart: always
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - ai_network
+
+  # 5. Motor de IA Local (Ollama - Gemma 4)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ai_ollama
+    restart: always
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - ai_network
+    # IMPORTANTE PARA PRODUCCIÓN: Descomentar para usar GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # 6. Motor de Generación de Imágenes (Stable Diffusion)
+  stable-diffusion:
+    image: kestr3l/stable-diffusion-webui:latest
+    container_name: ai_stable_diffusion
+    restart: always
+    environment:
+      - COMMANDLINE_ARGS=--api --listen --xformers --enable-insecure-extension-access
+    volumes:
+      - sd_models:/app/stable-diffusion-webui/models
+      - sd_outputs:/app/stable-diffusion-webui/outputs
+    networks:
+      - ai_network
+    # IMPORTANTE PARA PRODUCCIÓN: Descomentar para usar GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+networks:
+  ai_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  ollama_data:
+  sd_models:
+  sd_outputs:
+  user_data:
