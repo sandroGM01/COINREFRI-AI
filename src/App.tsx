@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { 
   MessageSquare, Settings, Plus, Image as ImageIcon, 
   Paperclip, Send, User, Shield, LogOut, 
@@ -13,7 +15,7 @@ import { saveAs } from 'file-saver';
 // --- Tipos ---
 type Role = 'admin' | 'user';
 
-type UserAccount = { id: string; username: string; role: Role; };
+type UserAccount = { id: string; username: string; password?: string; role: Role; permissions: string[]; };
 
 type SavedVessel = {
   id: string;
@@ -59,8 +61,8 @@ type SystemSettings = {
 
 // --- Datos Iniciales ---
 const INITIAL_USERS: UserAccount[] = [
-  { id: '1', username: 'admin', role: 'admin' },
-  { id: '2', username: 'usuario1', role: 'user' }
+  { id: '1', username: 'admin', password: '123', role: 'admin', permissions: ['projects', 'agents', 'sanipes', 'dicapi', 'saved_vessels'] },
+  { id: '2', username: 'usuario1', password: '123', role: 'user', permissions: ['sanipes', 'dicapi'] }
 ];
 
 const INITIAL_SETTINGS: SystemSettings = {
@@ -136,7 +138,9 @@ export default function App() {
 
   // Formularios
   const [newUsername, setNewUsername] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState<Role>('user');
+  const [newUserPermissions, setNewUserPermissions] = useState<string[]>(['projects', 'agents', 'sanipes', 'dicapi', 'saved_vessels']);
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', description: '' });
   const [showAgentForm, setShowAgentForm] = useState(false);
@@ -178,13 +182,13 @@ export default function App() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const user = usersDb.find(u => u.username.toLowerCase() === loginUsername.toLowerCase());
-    if (user) {
+    if (user && (user.password === loginPassword || !user.password)) {
       setCurrentUser(user); setLoginError(''); setCurrentView('chat');
       const userChats = chats.filter(c => c.userId === user.id);
       if (userChats.length === 0) handleNewChat(user.id);
       else setCurrentChatId(userChats[0].id);
     } else {
-      setLoginError('Usuario no encontrado.');
+      setLoginError('Usuario o contraseña incorrectos.');
     }
   };
 
@@ -223,7 +227,7 @@ export default function App() {
     setCurrentView('chat');
   };
 
-  const handleSend = (textOverride?: string) => {
+  const handleSend = async (textOverride?: string) => {
     const textToSend = textOverride || input;
     if (!textToSend.trim() && attachments.length === 0) return;
     if (!currentChatId) return;
@@ -232,6 +236,10 @@ export default function App() {
       id: Date.now().toString(), role: 'user', content: textToSend,
       attachments: attachments.map(f => ({ type: f.type.includes('pdf') ? 'pdf' : 'image', name: f.name }))
     };
+
+    // Obtenemos el chat actual antes de actualizar el estado
+    const chatToUpdate = chats.find(c => c.id === currentChatId);
+    if (!chatToUpdate) return;
 
     setChats(prev => prev.map(c => {
       if (c.id === currentChatId) {
@@ -243,25 +251,53 @@ export default function App() {
 
     setInput(''); setAttachments([]); setIsTyping(true);
 
-    setTimeout(() => {
-      let responseText = "";
-      if (currentChat?.agentId) {
-        const agent = agents.find(a => a.id === currentChat.agentId);
-        responseText = `[Agente: ${agent?.name}] Procesando con instrucciones personalizadas. `;
-      } else if (currentChat?.projectId) {
-        const proj = projects.find(p => p.id === currentChat.projectId);
-        responseText = `[Proyecto: ${proj?.name}] Buscando en la base vectorial (${proj?.files.length} archivos). `;
-      } else {
-        responseText = `[${systemSettings.model}] `;
+    try {
+      let systemInstruction = systemSettings.systemPrompt;
+      
+      if (chatToUpdate.agentId) {
+        const agent = agents.find(a => a.id === chatToUpdate.agentId);
+        if (agent) systemInstruction = agent.instructions;
+      } else if (chatToUpdate.projectId) {
+        const proj = projects.find(p => p.id === chatToUpdate.projectId);
+        if (proj) systemInstruction = `Eres un asistente para el proyecto ${proj.name}. ${proj.description}`;
       }
 
-      if (newMsg.attachments?.some(a => a.type === 'pdf')) responseText += `He analizado el PDF adjunto. `;
-      else if (newMsg.attachments?.some(a => a.type === 'image')) responseText += "He analizado la imagen con Visión. ";
-      else responseText += "Respuesta generada correctamente.";
+      // Preparamos el historial de mensajes para enviar a la API
+      const messagesToSend = [...chatToUpdate.messages, newMsg].map(m => ({
+        role: m.role,
+        content: m.content
+      }));
 
-      setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: [...c.messages, { id: Date.now().toString(), role: 'assistant', content: responseText }], updatedAt: Date.now() } : c));
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: messagesToSend,
+          systemInstruction,
+          model: systemSettings.model
+        })
+      });
+
+      if (!response.ok) throw new Error('Error en la respuesta de la API');
+      
+      const data = await response.json();
+      
+      setChats(prev => prev.map(c => c.id === currentChatId ? { 
+        ...c, 
+        messages: [...c.messages, { id: Date.now().toString(), role: 'assistant', content: data.text }], 
+        updatedAt: Date.now() 
+      } : c));
+
+    } catch (error) {
+      console.error("Error al enviar mensaje:", error);
+      setChats(prev => prev.map(c => c.id === currentChatId ? { 
+        ...c, 
+        messages: [...c.messages, { id: Date.now().toString(), role: 'assistant', content: 'Lo siento, ocurrió un error al procesar tu solicitud.' }], 
+        updatedAt: Date.now() 
+      } : c));
+    } finally {
       setIsTyping(false);
-    }, 1000);
+    }
   };
 
   // --- Handlers: Sanipes ---
@@ -535,8 +571,14 @@ export default function App() {
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUsername.trim() || usersDb.some(u => u.username === newUsername)) return showAlert('Usuario inválido o ya existe');
-    setUsersDb([...usersDb, { id: Date.now().toString(), username: newUsername.trim(), role: newUserRole }]);
+    setUsersDb([...usersDb, { id: Date.now().toString(), username: newUsername.trim(), password: newUserPassword, role: newUserRole, permissions: newUserPermissions }]);
     setNewUsername('');
+    setNewUserPassword('');
+    setNewUserPermissions(['projects', 'agents', 'sanipes', 'dicapi', 'saved_vessels']);
+  };
+  
+  const togglePermission = (perm: string) => {
+    setNewUserPermissions(prev => prev.includes(perm) ? prev.filter(p => p !== perm) : [...prev, perm]);
   };
   const handleDeleteUser = (id: string) => {
     if (id === currentUser?.id) return showAlert('No puedes eliminarte a ti mismo.');
@@ -630,11 +672,21 @@ export default function App() {
           <div>
             <div className="text-xs font-semibold text-gray-400 uppercase mb-2 px-2">Espacio de Trabajo</div>
             <div className="space-y-1">
-              <button onClick={() => setCurrentView('projects')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-sm ${currentView === 'projects' ? 'bg-white/10 text-[#0A84FF]' : 'hover:bg-white/10 active:scale-[0.98] transition-all duration-200 text-gray-400'}`}><Folder size={16} /> Proyectos</button>
-              <button onClick={() => {setCurrentView('agents'); setActiveAgentId(null);}} className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-sm ${currentView === 'agents' ? 'bg-white/10 text-[#0A84FF]' : 'hover:bg-white/10 active:scale-[0.98] transition-all duration-200 text-gray-400'}`}><Cpu size={16} /> Agentes Generados</button>
-              <button onClick={() => setCurrentView('sanipes')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-sm ${currentView === 'sanipes' ? 'bg-white/10 text-[#0A84FF]' : 'hover:bg-white/10 active:scale-[0.98] transition-all duration-200 text-gray-400'}`}><Globe size={16} /> SANIPES</button>
-              <button onClick={() => setCurrentView('dicapi')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-sm ${currentView === 'dicapi' ? 'bg-white/10 text-[#0A84FF]' : 'hover:bg-white/10 active:scale-[0.98] transition-all duration-200 text-gray-400'}`}><Search size={16} /> CONSULTAS DICAPI</button>
-              <button onClick={() => setCurrentView('saved_vessels')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-sm ${currentView === 'saved_vessels' ? 'bg-white/10 text-[#0A84FF]' : 'hover:bg-white/10 active:scale-[0.98] transition-all duration-200 text-gray-400'}`}><List size={16} /> Naves Guardadas</button>
+              {(currentUser?.role === 'admin' || currentUser?.permissions?.includes('projects')) && (
+                <button onClick={() => {setCurrentView('projects');}} className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-sm ${currentView === 'projects' ? 'bg-white/10 text-[#0A84FF]' : 'hover:bg-white/10 active:scale-[0.98] transition-all duration-200 text-gray-400'}`}><Folder size={16} /> Proyectos</button>
+              )}
+              {(currentUser?.role === 'admin' || currentUser?.permissions?.includes('agents')) && (
+                <button onClick={() => {setCurrentView('agents'); setActiveAgentId(null);}} className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-sm ${currentView === 'agents' ? 'bg-white/10 text-[#0A84FF]' : 'hover:bg-white/10 active:scale-[0.98] transition-all duration-200 text-gray-400'}`}><Cpu size={16} /> Agentes Generados</button>
+              )}
+              {(currentUser?.role === 'admin' || currentUser?.permissions?.includes('sanipes')) && (
+                <button onClick={() => {setCurrentView('sanipes');}} className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-sm ${currentView === 'sanipes' ? 'bg-white/10 text-[#0A84FF]' : 'hover:bg-white/10 active:scale-[0.98] transition-all duration-200 text-gray-400'}`}><Globe size={16} /> SANIPES</button>
+              )}
+              {(currentUser?.role === 'admin' || currentUser?.permissions?.includes('dicapi')) && (
+                <button onClick={() => {setCurrentView('dicapi');}} className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-sm ${currentView === 'dicapi' ? 'bg-white/10 text-[#0A84FF]' : 'hover:bg-white/10 active:scale-[0.98] transition-all duration-200 text-gray-400'}`}><Search size={16} /> CONSULTAS DICAPI</button>
+              )}
+              {(currentUser?.role === 'admin' || currentUser?.permissions?.includes('saved_vessels')) && (
+                <button onClick={() => {setCurrentView('saved_vessels');}} className={`w-full flex items-center gap-3 px-3 py-2 rounded-2xl text-sm ${currentView === 'saved_vessels' ? 'bg-white/10 text-[#0A84FF]' : 'hover:bg-white/10 active:scale-[0.98] transition-all duration-200 text-gray-400'}`}><List size={16} /> Naves Guardadas</button>
+              )}
             </div>
           </div>
           <div>
@@ -745,22 +797,50 @@ export default function App() {
               <div className="grid md:grid-cols-3 gap-6">
                 <form onSubmit={handleCreateUser} className="bg-[#1C1C1E]/60 backdrop-blur-3xl border border-white/5 p-5 rounded-xl h-fit space-y-4">
                   <h3 className="font-medium text-white flex items-center gap-2"><UserPlus size={18} className="text-[#0A84FF]"/> Nuevo Usuario</h3>
-                  <input type="text" value={newUsername} onChange={e=>setNewUsername(e.target.value)} placeholder="Username" className="w-full bg-white/10 text-white rounded-2xl px-3 py-2 border border-white/20" required />
-                  <select value={newUserRole} onChange={e=>setNewUserRole(e.target.value as Role)} className="w-full bg-white/10 text-white rounded-2xl px-3 py-2 border border-white/20">
+                  <input type="text" value={newUsername} onChange={e=>setNewUsername(e.target.value)} placeholder="Usuario" className="w-full bg-white/10 text-white rounded-2xl px-3 py-2 border border-white/20 focus:border-[#0A84FF] outline-none" required />
+                  <input type="password" value={newUserPassword} onChange={e=>setNewUserPassword(e.target.value)} placeholder="Contraseña" className="w-full bg-white/10 text-white rounded-2xl px-3 py-2 border border-white/20 focus:border-[#0A84FF] outline-none" required />
+                  <select value={newUserRole} onChange={e=>setNewUserRole(e.target.value as Role)} className="w-full bg-white/10 text-white rounded-2xl px-3 py-2 border border-white/20 focus:border-[#0A84FF] outline-none">
                     <option value="user">Usuario</option><option value="admin">Admin</option>
                   </select>
-                  <button type="submit" className="w-full bg-emerald-600 text-white py-2 rounded-2xl">Crear</button>
+                  
+                  {newUserRole === 'user' && (
+                    <div className="space-y-2 mt-4">
+                      <label className="text-xs font-semibold text-gray-400 uppercase">Permisos de Acceso</label>
+                      <div className="flex flex-col gap-2">
+                        {[
+                          { id: 'projects', label: 'Proyectos' },
+                          { id: 'agents', label: 'Agentes Generados' },
+                          { id: 'sanipes', label: 'SANIPES' },
+                          { id: 'dicapi', label: 'CONSULTAS DICAPI' },
+                          { id: 'saved_vessels', label: 'Naves Guardadas' }
+                        ].map(perm => (
+                          <label key={perm.id} className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                            <input type="checkbox" checked={newUserPermissions.includes(perm.id)} onChange={() => togglePermission(perm.id)} className="rounded border-white/20 bg-white/10 text-[#0A84FF] focus:ring-[#0A84FF]" />
+                            {perm.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <button type="submit" className="w-full bg-[#0A84FF] hover:bg-[#007AFF] active:scale-[0.98] transition-all duration-200 text-white py-2 rounded-2xl mt-2">Crear Usuario</button>
                 </form>
                 <div className="md:col-span-2 bg-[#1C1C1E]/60 backdrop-blur-3xl border border-white/5 rounded-xl overflow-hidden">
                   <table className="w-full text-left text-sm text-gray-400">
-                    <thead className="bg-white/10/50 text-xs uppercase"><tr><th className="px-4 py-3">Usuario</th><th className="px-4 py-3">Rol</th><th className="px-4 py-3 text-right">Acción</th></tr></thead>
+                    <thead className="bg-white/10 text-xs uppercase"><tr><th className="px-4 py-3">Usuario</th><th className="px-4 py-3">Contraseña</th><th className="px-4 py-3">Rol</th><th className="px-4 py-3">Permisos</th><th className="px-4 py-3 text-right">Acción</th></tr></thead>
                     <tbody>
                       {usersDb.map(u => (
-                        <tr key={u.id} className="border-b border-white/5">
-                          <td className="px-4 py-3 text-gray-200">{u.username}</td>
-                          <td className="px-4 py-3">{u.role}</td>
+                        <tr key={u.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          <td className="px-4 py-3 text-gray-200 font-medium">{u.username}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-gray-500">{u.password || 'N/A'}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 rounded-full text-xs ${u.role === 'admin' ? 'bg-[#0A84FF]/20 text-[#0A84FF]' : 'bg-gray-500/20 text-gray-300'}`}>{u.role}</span>
+                          </td>
+                          <td className="px-4 py-3 text-xs">
+                            {u.role === 'admin' ? 'Acceso Total' : (u.permissions?.length ? u.permissions.join(', ') : 'Ninguno')}
+                          </td>
                           <td className="px-4 py-3 text-right">
-                            <button onClick={()=>handleDeleteUser(u.id)} className="text-red-400 hover:text-red-300"><Trash2 size={16}/></button>
+                            <button onClick={()=>handleDeleteUser(u.id)} className="text-gray-500 hover:text-red-400 active:scale-[0.98] transition-all p-1"><Trash2 size={16}/></button>
                           </td>
                         </tr>
                       ))}
@@ -1396,83 +1476,109 @@ export default function App() {
 
             {/* Modal de Detalle de Nave Guardada */}
             {selectedSavedVessel && (
-              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
-                <div className="bg-[#000000] border border-white/5 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-                  <div className="flex items-center justify-between p-5 border-b border-white/5">
-                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                      <Search size={20} className="text-[#0A84FF]" />
-                      Detalle de Nave: {selectedSavedVessel.nombre}
-                    </h3>
-                    <button onClick={() => setSelectedSavedVessel(null)} className="text-gray-400 hover:text-white transition-colors">
-                      <X size={24} />
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in">
+                <div className="bg-[#000000] border border-white/10 rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+                  
+                  {/* Header */}
+                  <div className="flex items-center justify-between p-6 bg-[#1C1C1E]/80 backdrop-blur-3xl border-b border-white/5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-[#0A84FF]/20 flex items-center justify-center">
+                        <Search size={20} className="text-[#0A84FF]" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-white leading-tight">{selectedSavedVessel.nombre}</h3>
+                        <p className="text-sm text-[#0A84FF] font-medium">{selectedSavedVessel.matricula}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => setSelectedSavedVessel(null)} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-all active:scale-95">
+                      <X size={20} />
                     </button>
                   </div>
-                  <div className="p-6 overflow-y-auto">
-                    {/* Características Técnicas */}
-                    <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Características Técnicas</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-                      <div className="bg-[#1C1C1E]/60 backdrop-blur-3xl p-3 rounded-2xl border border-white/5">
-                        <p className="text-xs text-gray-500 mb-1">Matrícula</p>
-                        <p className="text-white font-medium">{selectedSavedVessel.matricula}</p>
-                      </div>
-                      <div className="bg-[#1C1C1E]/60 backdrop-blur-3xl p-3 rounded-2xl border border-white/5">
-                        <p className="text-xs text-gray-500 mb-1">Arqueo Bruto</p>
-                        <p className="text-white font-medium">{selectedSavedVessel.arqueoBruto}</p>
-                      </div>
-                      <div className="bg-[#1C1C1E]/60 backdrop-blur-3xl p-3 rounded-2xl border border-white/5">
-                        <p className="text-xs text-gray-500 mb-1">Arqueo Neto</p>
-                        <p className="text-white font-medium">{selectedSavedVessel.arqueoNeto}</p>
-                      </div>
-                      <div className="bg-[#1C1C1E]/60 backdrop-blur-3xl p-3 rounded-2xl border border-white/5">
-                        <p className="text-xs text-gray-500 mb-1">Eslora</p>
-                        <p className="text-white font-medium">{selectedSavedVessel.eslora}</p>
-                      </div>
-                      <div className="bg-[#1C1C1E]/60 backdrop-blur-3xl p-3 rounded-2xl border border-white/5">
-                        <p className="text-xs text-gray-500 mb-1">Manga</p>
-                        <p className="text-white font-medium">{selectedSavedVessel.manga}</p>
-                      </div>
-                      <div className="bg-[#1C1C1E]/60 backdrop-blur-3xl p-3 rounded-2xl border border-white/5">
-                        <p className="text-xs text-gray-500 mb-1">Puntal</p>
-                        <p className="text-white font-medium">{selectedSavedVessel.puntal}</p>
-                      </div>
-                      <div className="bg-[#1C1C1E]/60 backdrop-blur-3xl p-3 rounded-2xl border border-white/5">
-                        <p className="text-xs text-gray-500 mb-1">Capacidad de Bodega</p>
-                        <p className="text-white font-medium">{selectedSavedVessel.capacidadBodega}</p>
-                      </div>
-                      <div className="bg-[#1C1C1E]/60 backdrop-blur-3xl p-3 rounded-2xl border border-white/5">
-                        <p className="text-xs text-gray-500 mb-1">Radiobaliza</p>
-                        <p className="text-white font-medium">{selectedSavedVessel.tieneRadiobaliza} {selectedSavedVessel.codRadiobaliza ? `(${selectedSavedVessel.codRadiobaliza})` : ''}</p>
+
+                  {/* Body */}
+                  <div className="p-6 overflow-y-auto space-y-6">
+                    
+                    {/* Card: Características Técnicas */}
+                    <div className="bg-[#1C1C1E]/40 border border-white/5 rounded-2xl p-6">
+                      <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-5 flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-[#0A84FF]"></div>
+                        Características Técnicas
+                      </h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-6 gap-x-4">
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Arqueo Bruto</p>
+                          <p className="text-white font-medium">{selectedSavedVessel.arqueoBruto || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Arqueo Neto</p>
+                          <p className="text-white font-medium">{selectedSavedVessel.arqueoNeto || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Eslora</p>
+                          <p className="text-white font-medium">{selectedSavedVessel.eslora || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Manga</p>
+                          <p className="text-white font-medium">{selectedSavedVessel.manga || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Puntal</p>
+                          <p className="text-white font-medium">{selectedSavedVessel.puntal || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Capacidad de Bodega</p>
+                          <p className="text-white font-medium">{selectedSavedVessel.capacidadBodega || '-'}</p>
+                        </div>
+                        <div className="col-span-2 sm:col-span-3 pt-4 border-t border-white/5">
+                          <p className="text-xs text-gray-500 mb-1">Radiobaliza</p>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 rounded-md text-xs font-medium ${selectedSavedVessel.tieneRadiobaliza === 'SI' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                              {selectedSavedVessel.tieneRadiobaliza}
+                            </span>
+                            {selectedSavedVessel.codRadiobaliza && (
+                              <span className="text-white font-medium text-sm">{selectedSavedVessel.codRadiobaliza}</span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Propietarios */}
-                    <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Propietarios</h4>
-                    {selectedSavedVessel.propietarios && selectedSavedVessel.propietarios.length > 0 ? (
-                      <div className="bg-[#1C1C1E]/60 backdrop-blur-3xl rounded-2xl border border-white/5 overflow-hidden">
-                        <table className="w-full text-sm text-left text-gray-300">
-                          <thead className="text-xs text-gray-400 uppercase bg-white/5 border-b border-white/5">
-                            <tr>
-                              <th className="px-4 py-3">Nombre</th>
-                              <th className="px-4 py-3">Doc. Identidad</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {selectedSavedVessel.propietarios.map((prop, idx) => (
-                              <tr key={idx} className="border-b border-white/5 last:border-0">
-                                <td className="px-4 py-3 font-medium text-white">{prop.nombre}</td>
-                                <td className="px-4 py-3">{prop.docIdentidad}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <p className="text-gray-500 italic">No se encontraron propietarios.</p>
-                    )}
+                    {/* Card: Propietarios */}
+                    <div className="bg-[#1C1C1E]/40 border border-white/5 rounded-2xl p-6">
+                      <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-5 flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                        Propietarios
+                      </h4>
+                      {selectedSavedVessel.propietarios && selectedSavedVessel.propietarios.length > 0 ? (
+                        <div className="space-y-3">
+                          {selectedSavedVessel.propietarios.map((prop, idx) => (
+                            <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
+                              <div className="flex items-center gap-3 mb-2 sm:mb-0">
+                                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-gray-300">
+                                  <User size={16} />
+                                </div>
+                                <span className="font-medium text-white">{prop.nombre}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm text-gray-400 bg-black/30 px-3 py-1.5 rounded-lg">
+                                <span className="text-xs uppercase">Doc:</span>
+                                <span className="font-mono text-gray-200">{prop.docIdentidad}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 bg-white/5 rounded-xl border border-white/5 border-dashed">
+                          <p className="text-gray-500 italic">No se encontraron propietarios registrados.</p>
+                        </div>
+                      )}
+                    </div>
+
                   </div>
-                  <div className="p-5 border-t border-white/5 flex justify-end">
-                    <button onClick={() => setSelectedSavedVessel(null)} className="bg-white/10 hover:bg-white/10 active:scale-[0.98] transition-all duration-200 text-white px-4 py-2 rounded-xl font-medium transition-colors">
-                      Cerrar
+
+                  {/* Footer */}
+                  <div className="p-5 border-t border-white/5 bg-[#1C1C1E]/80 backdrop-blur-3xl flex justify-end">
+                    <button onClick={() => setSelectedSavedVessel(null)} className="bg-[#0A84FF] hover:bg-[#007AFF] active:scale-95 transition-all duration-200 text-white px-8 py-2.5 rounded-xl font-medium shadow-lg shadow-[#0A84FF]/20">
+                      Cerrar Detalles
                     </button>
                   </div>
                 </div>

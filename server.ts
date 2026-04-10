@@ -2,6 +2,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import * as cheerio from "cheerio";
+import { GoogleGenAI } from "@google/genai";
 
 async function startServer() {
   const app = express();
@@ -9,6 +10,35 @@ async function startServer() {
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+
+  // Initialize Gemini AI
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+  // Chat API Endpoint
+  app.post("/api/chat", async (req, res) => {
+    try {
+      const { messages, systemInstruction } = req.body;
+      
+      const contents = messages.map((m: any) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }));
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents,
+        config: {
+          systemInstruction: systemInstruction || "Eres un asistente de IA avanzado. Puedes crear tablas y analizar datos. Estás conectado a Google Search para obtener información actualizada.",
+          tools: [{ googleSearch: {} }],
+        }
+      });
+
+      res.json({ text: response.text });
+    } catch (error) {
+      console.error("Gemini API Error:", error);
+      res.status(500).json({ error: 'Error al generar respuesta de IA' });
+    }
+  });
 
   // Proxy for DICAPI
   app.post("/api/dicapi/consulta", async (req, res) => {
