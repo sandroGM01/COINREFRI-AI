@@ -1,0 +1,364 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><meta charset="utf-8" /><meta http-equiv="X-UA-Compatible" content="IE=EmulateIE11" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>
+	
+	DATOS DE LA NAVE
+
+
+</title><link href="../Content/Site.css" rel="stylesheet" type="text/css" /><link href="../Content/css/esqResult.css" rel="stylesheet" type="text/css" /><link href="../Content/css/esqForm.css" rel="stylesheet" type="text/css" /><link href="../Content/SpryAssets/SpryTabbedPanels.css" rel="stylesheet" type="text/css" /><link href="../Plugin/bootstrap-3.3.6/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
+    
+    <script src="../Scripts/jquery-1.3.2.min.js" type="text/javascript"></script>   
+    <script src="../Scripts/jquery-1.11.3.min.js" type="text/javascript"></script>
+    <script src="../Content/SpryAssets/SpryTabbedPanels.js" type="text/javascript"></script> 
+    <script src="../Content/bootstrap336/js/bootstrap.min.js" type="text/javascript"></script>
+</head>
+
+<body>
+    <div class="page">
+       
+        <div id="header">
+           <div id="title">
+                <h1>CONSULTAS DE EMBARCACIONES</h1>
+           </div>
+            
+            <div id="menucontainer">
+                <ul id="menu">
+                    <li style="display:inline;text-align:center;"><a href="/ConsultarNaves/Naves/ConsultarNave">Naves</a></li>
+                    <li style="display:inline;text-align:center;"><a href="/ConsultarNaves/Encargados/ConsultarEncargado">Propietarios</a></li>
+                </ul>
+               
+            </div>
+        </div>
+        <div id="main">
+            
+  <style type="text/css">
+/* The Modal (background) */
+.modal {
+  display: none; /* Hidden by default */
+  position: fixed; /* Stay in place */
+  z-index: 1; /* Sit on top */
+  padding-top: 5px; /* Location of the box */
+  left: 0;
+  top: 0;
+  width: 96%; /* Full width */
+  height: auto; /* Full height */
+  overflow: auto; /* Enable scroll if needed */
+}
+
+/* Modal Content */
+.modal-content {
+  background-color: #fefefe;
+  margin: auto;
+  padding: 5px;
+  border: 1px solid #888;
+  width: 100%;
+  height:auto;
+}
+
+/* The Close Button */
+.close 
+{
+  color: #00008A;
+  float:right;
+  font-size: 100px;
+  font-weight: bold;
+}
+
+.close:hover,
+.close:focus {
+  color: #FF0000;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+</style>
+ 
+  <div class="container-fluid">     
+        <div class="row">
+            <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 cuerpoForm">
+              
+                <div class="page-header">
+                  <h1>Información de la Nave</h1>
+                </div>
+                <form action="/ConsultarNaves/Naves/VerDetalleNave?CodigoNave=21156" method="post">
+                    
+                    <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12">
+                      
+                        <div class="col-xs-12 col-sm-6 col-md-6 col-lg-6">   
+                                                   
+                           <div class="container-fluid">
+                           
+                                <div id="my-pics" class="carousel slide" data-ride="carousel" data-interval="false" style="width:96%;margin:auto;display:run-in">
+                                    <!-- Indicators -->
+                                    <ol class="carousel-indicators">
+                                        <li data-target="#my-pics" data-slide-to="0"></li>
+                                        <li data-target="#my-pics" data-slide-to="1"></li>
+                                    </ol>
+                            
+                                    <div class="carousel-inner" role="listbox">
+                                        <div class="item active">
+                                            <img src="../Image/Nave.jpg" id="Imagen0" onclick="SwFoto('0')" />
+                                        </div>
+                                        <div class="item">
+                                            <img src="../Image/Nave.jpg" id="Imagen1" onclick="SwFoto('1')" />
+                                        </div>
+                                    </div> 
+                          
+                                    <!-- Previous/Next controls -->
+                                    <a class="left carousel-control" href="#my-pics" role="button" data-slide="prev">
+                                    <span class="icon-prev" aria-hidden="true"></span>
+                                    <span class="sr-only">Anterior</span>
+                                    </a>
+    
+                                    <a class="right carousel-control" href="#my-pics" role="button" data-slide="next">
+                                    <span class="icon-next" aria-hidden="true"></span>
+                                    <span class="sr-only">Siguiente</span>
+                                    </a>
+                                </div>
+                               
+                            </div>
+                            
+                       </div>
+                                              
+                        <div class="col-xs-12 col-sm-6 col-md-6 col-lg-6 separacion bordeInf">      
+                            <div class="col-xs-12 col-sm-6 col-md-6 col-lg-6">
+                                <ul class="list-inline">
+                                    <li class="formTextoBold">Nave:</li>
+                                    <li class="formatTexto">DELFIN II</li>
+                                </ul>
+                                <ul class="list-inline">
+                                    <li class="formTextoBold">Matricula:</li>
+                                    <li class="formatTexto">IQ-21414-BF</li>
+                                </ul>
+                                <ul class="list-inline">
+                                    <li class="formTextoBold">Estado:</li>
+                                    <li class="formatTexto">Activa</li>
+                                </ul>
+                                <ul class="list-inline">
+                                    <li class="formTextoBold">Folio:</li>
+                                    <li class="formatTexto">021 </li>
+                                </ul>
+                                <ul class="list-inline">
+                                    <li class="formTextoBold">Libro:</li>
+                                    <li class="formatTexto">1021</li>
+                                </ul>
+                            </div>
+                        </div> 
+                                              
+                    </div>
+                    
+                    <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 datosEsp">
+                        <h3>Características Técnicas</h3>
+                        <div class="col-xs-12 col-sm-6 col-md-6 col-lg-6 bordeInf">
+                            <ul class="list-inline">
+                              <li class="formTextoBold">Arqueo Bruto:</li>
+                              <li class="formatTexto">1.15</li>
+                            </ul>
+                            <ul class="list-inline">
+                              <li class="formTextoBold">Eslora:</li>
+                              <li class="formatTexto">8.50</li>
+                            </ul>
+                            <ul class="list-inline">
+                              <li class="formTextoBold">Puntal:</li>
+                              <li class="formatTexto">0.70</li>
+                            </ul>
+                            <ul class="list-inline">
+                              <li class="formTextoBold">Tiene radiobaliza:</li>
+                              <li class="formatTexto">No</li>
+                            </ul>
+                        </div>
+                        <div class="col-xs-12 col-sm-6 col-md-6 col-lg-6 bordeInf">
+                            <ul class="list-inline">
+                              <li class="formTextoBold">Arqueo Neto:</li>
+                              <li class="formatTexto">0</li>
+                            </ul>
+                            <ul class="list-inline">
+                              <li class="formTextoBold">Manga:</li>
+                              <li class="formatTexto">1.80</li>
+                            </ul>
+                            <ul class="list-inline">
+                              <li class="formTextoBold">Capacidad de bodega:</li>
+                              <li class="formatTexto">0</li>
+                            </ul>
+                            <ul class="list-inline">
+                              <li class="formTextoBold">Cod.Radiobaliza:</li>
+                              <li class="formatTexto">---</li>
+                            </ul>
+                        </div>
+                        <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12">
+                            <ul class="list-inline">
+                              <li class="formTextoBold"></li>
+                              <li class="formatTexto"></li>
+                            </ul>
+                            <ul class="list-inline">
+                              <li class="formTextoBold"></li>
+                              <li class="formatTexto"></li>
+                            </ul>
+                        </div>
+                    </div>                               
+                    
+                    <div id="TabbedPanels1" class="TabbedPanels">
+                        <ul class="TabbedPanelsTabGroup">
+                            <li class="TabbedPanelsTab" tabindex="1">Propietarios</li>
+                            <li class="TabbedPanelsTab" tabindex="2">Certificados</li>
+                            <li class="TabbedPanelsTab" tabindex="3">Cert.Medio Ambiente</li>
+                        </ul>
+                        <div class="TabbedPanelsContentGroup">
+                           <!-- tab 1 content --> 
+                           <div class="TabbedPanelsContent">
+                                <!--<div class="cuerpoEnlace"><a id="botProp" href="#" class="enlCabecero">Propietarios</a></div>-->
+                                <div id="prop" class="cuerpoTabla">
+                                <div class="table-responsive">
+                                    <table class="table-bordered col-xs-12 col-sm-12 col-md-12 col-lg-12">
+                                        <tr class="subCabecero">
+                                            <th>Nombres / Razon Social</th>
+                                            <th>Doc.Identidad</th>
+                                        </tr>
+                                         
+                                                    <tr class="subCabecero">
+                                                        <td>CARE - PERU </td>
+                                                        <td>20110580861 </td>
+                                                    </tr>
+                                               
+                                                    <tr class="subCabecero">
+                                                        <td>MUNICIPALIDAD DISTRITAL DEL NAPO </td>
+                                                        <td>20165973683 </td>
+                                                    </tr>
+                                               
+                                    </table>
+                                </div>
+                           </div>	  
+                           </div>
+                     
+                           <!-- tab 2 content -->
+                           <div class="TabbedPanelsContent">
+                                <!--<div class="cuerpoEnlace"><a href="#" class="enlCabecero">Certificados</a></div>-->
+                                <div class="cuerpoTabla">
+                                    <div class="table-responsive">
+                            <table class="table-bordered col-xs-12 col-sm-12 col-md-12 col-lg-12">
+                            <tbody>
+                            <tr class="subCabecero">
+                                <th>N°Certificado</th>
+                                <th>Nombre de la Nave</th>
+                                <th>Tipo Certificado</th>
+                                <th>Fecha Expedición</th>
+                                <th>Vcto. Refrenda</th>
+                                <th>Cert. Digital</th>
+                            </tr>
+                            
+                                    <tr>
+                                        <td>DI-02010736-11-001</td>
+                                        <td>DELFIN II</td>
+                                        <td>Matricula de Naves y Artefactos Navales</td>
+                                        <td align="center">15/06/2010</td>
+                                        <td align="center">-</td>
+                                        
+                                             <td align="center">-</td>
+                                          
+                                   </tr>
+                              
+                                    <tr>
+                                        <td>DI-02010736-10-001</td>
+                                        <td>DELFIN II</td>
+                                        <td>Seguridad hasta 6.48 de AB</td>
+                                        <td align="center">30/06/2010</td>
+                                        <td align="center">-</td>
+                                        
+                                             <td align="center">-</td>
+                                          
+                                   </tr>
+                              
+                            </tbody>
+                         </table>
+                        </div>
+                                </div>
+                           </div>
+                       
+                            <!-- tab 3 content -->
+                           <div class="TabbedPanelsContent">
+                               <div class="cuerpoTabla">
+                                    <div class="table-responsive">
+                            <table class="table-bordered col-xs-12 col-sm-12 col-md-12 col-lg-12">
+                            <tbody>
+                            <tr class="subCabecero">
+                                <th>N°Certificado</th>
+                                <th>Nombre de la Nave</th>
+                                <th>Tipo Certificado</th>
+                                <th>Fecha Expedición</th>
+                                <th>Fecha Vcto.</th>
+                                <th>Cert.Digital</th>
+                            </tr>
+                            
+                            </tbody>
+                         </table>
+                        </div>
+                                </div>
+                           </div>
+                           
+                       </div>  <!-- end tabbed panels content group -->
+                    </div>  <!-- end TabbedPanels -->
+                    <script type="text/javascript">
+                        var TabbedPanels1 = new Spry.Widget.TabbedPanels("TabbedPanels1");
+                    </script>
+                   </form>
+                
+                <div class="botRetorno">
+                    <button type="reset" class="btn btn-primary letraFina" onclick = "history.go(-1)">Volver a la búsqueda</button> 
+                </div>
+            </div>
+              
+            <div class="pieInfo">
+                <p>La información de los servicios de consultas en línea NO tiene validez para ningún trámite administrativo judicial u otros.</p>
+            </div>
+        </div>
+  </div>
+  
+  <!-- Modal content -->
+  <div id="myModal" class="modal">
+        <span class="close">&times;</span>
+            <img id="ImgFotoModal" class="modal-content" src="" />
+  </div>
+  <!-- Fin Modal -->
+  
+  <script type="text/javascript">
+     
+      function SwFoto(LadoFoto){
+        
+        switch (LadoFoto)
+        {
+            case "0":
+                var img = document.getElementById("Imagen0");
+                break;
+            case "1":
+                var img = document.getElementById("Imagen1");
+                break;
+        }
+
+        var modal = document.getElementById("myModal");
+        var modalImg = document.getElementById("ImgFotoModal");
+        
+        img.onclick = function() {
+            modal.style.display = "block";
+            modalImg.src = this.src;
+        }
+
+        var span = document.getElementsByClassName("close")[0];
+        
+        span.onclick = function() {
+            modal.style.display = "none";
+        }
+    }
+   
+</script>
+
+
+            <div id="footer">
+            
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+
